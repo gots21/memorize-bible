@@ -13,9 +13,14 @@ function loadState() {
   const topicsRaw   = localStorage.getItem('mb_topics');
   const statusesRaw = localStorage.getItem('mb_statuses');
 
-  State.topics = topicsRaw
-    ? JSON.parse(topicsRaw)
-    : JSON.parse(JSON.stringify(BIBLE_DATA));
+  if (topicsRaw) {
+    State.topics = JSON.parse(topicsRaw);
+  } else if (typeof BIBLE_DATA !== 'undefined') {
+    State.topics = JSON.parse(JSON.stringify(BIBLE_DATA));
+  } else {
+    console.error('data.js가 로드되지 않았습니다. index.html과 같은 폴더에 data.js를 추가하세요.');
+    State.topics = [];
+  }
 
   if (statusesRaw) {
     State.statuses = JSON.parse(statusesRaw);
