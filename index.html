@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>성경 암송</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header id="app-header">
+    <span id="header-title">성경 암송</span>
+    <div id="header-btns">
+      <button id="btn-settings">설정</button>
+      <button id="btn-back" hidden>← 홈</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="view" id="view-main"></section>
+    <section class="view" id="view-test" hidden></section>
+    <section class="view" id="view-settings" hidden></section>
+  </main>
+
+  <div id="modal-test" hidden>
+    <div class="modal-card">
+      <h2 id="modal-topic-name"></h2>
+      <p>테스트 방식을 선택하세요</p>
+      <button class="btn-mode btn-primary" data-mode="recite">말씀 암송</button>
+      <button class="btn-mode btn-primary" data-mode="reference">장절 맞추기</button>
+      <button id="btn-modal-cancel" class="btn-secondary">취소</button>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
