@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>성경 암송 앱</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="./data.js"></script>
+</head>
+<body class="bg-slate-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        const BibleApp = () => {
+            // 검수: 로컬스토리지 저장 로직 확인
+            const [data, setData] = useState(() => {
+                const saved = localStorage.getItem('bible_memory_state');
+                if (saved) return JSON.parse(saved);
+                
+                // 초기 데이터에 상태값(status) 부여
+                return initialBibleData.map(cat => ({
+                    ...cat,
+                    verses: cat.verses.map(v => ({ ...v, status: 'none' }))
+                }));
+            });
+
+            const [view, setView] = useState('main'); 
+            const [selectedIdx, setSelectedIdx] = useState(0);
+            const [testMode, setTestMode] = useState('text');
+            const [filterOnlyIncomplete, setFilterOnlyIncomplete] = useState(false);
+
+            useEffect(() => {
+                localStorage.setItem('bible_memory_state', JSON.stringify(data));
+            }, [data]);
+
+            // 코딩: 상태 업데이트 기능
+            const updateStatus = (catIdx, verseId, newStatus) => {
+                const newData = [...data];
+                const verse = newData[catIdx].verses.find(v => v.id === verseId);
+                verse.status = newStatus;
+                setData(newData);
+            };
+
+            const resetAll = () => {
+                if(confirm("모든 암송 상태를 초기화할까?")) {
+                    const resetData = data.map(cat => ({
+                        ...cat,
+                        verses: cat.verses.map(v => ({ ...v, status: 'none' }))
+                    }));
+                    setData(resetData);
+                }
+            };
+
+            // 검수: 진행률 계산 최적화
+            const renderProgress = (verses) => {
+                const doneCount = verses.filter(v => v.status === 'done').length;
+                return Math.round((doneCount / verses.length) * 100);
+            };
+
+            // --- UI 메인 화면 ---
+            if (view === 'main') return (
+                <div className="p-5 max-w-md mx-auto">
+                    <header className="flex justify-between items-center mb-8">
+                        <h1 className="text-2xl font-black text-slate-800">Bible Memorize</h1>
+                        <button onClick={() => setView('settings')} className="text-xl">⚙️</button>
+                    </header>
+
+                    <div className="mb-6">
+                        <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer bg-white p-3 rounded-lg border">
+                            <input type="checkbox" checked={filterOnlyIncomplete} onChange={e => setFilterOnlyIncomplete(e.target.checked)} />
+                            미완료(불완전/모름) 구절만 보기
+                        </label>
+                    </div>
+
+                    {data.map((cat, idx) => {
+                        const progress = renderProgress(cat.verses);
+                        return (
+                            <div key={idx} className="mb-6 p-4 bg-white rounded-xl shadow-sm border border-slate-100">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h2 className="font-bold text-slate-700">[{cat.category}]</h2>
+                                    <span className="text-blue-500 font-bold text-sm">{progress}%</span>
+                                </div>
+                                <div className="w-full bg-slate-100 h-1.5 rounded-full mb-4">
+                                    <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{width: `${progress}%`}}></div>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={() => {setSelectedIdx(idx); setTestMode('text'); setView('test');}} className="flex-1 py-2 bg-slate-800 text-white text-xs rounded-lg">말씀 테스트</button>
+                                    <button onClick={() => {setSelectedIdx(idx); setTestMode('ref'); setView('test');}} className="flex-1 py-2 bg-slate-100 text-slate-700 text-xs rounded-lg border">장절 테스트</button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+
+            // 테스트 화면 및 설정 화면 (생략 가능하나 기능 유지를 위해 포함)
+            if (view === 'test') return (
+                <div className="p-5 max-w-md mx-auto">
+                    <button onClick={() => setView('main')} className="mb-4 text-slate-400">← 뒤로가기</button>
+                    <h2 className="text-xl font-bold mb-6 text-center text-slate-800">[{data[selectedIdx].category}]</h2>
+                    {data[selectedIdx].verses.map(v => (
+                        <div key={v.id} className="mb-6 p-5 bg-white rounded-2xl border shadow-sm">
+                            <p className="text-blue-600 font-bold mb-2">{testMode === 'text' ? v.ref : '???'}</p>
+                            <details className="mb-4">
+                                <summary className="text-xs text-slate-300 cursor-pointer focus:outline-none">정답 확인</summary>
+                                <p className="mt-2 text-slate-700 leading-relaxed">{testMode === 'text' ? v.text : v.ref}</p>
+                            </details>
+                            <div className="flex gap-1">
+                                {['done', 'partial', 'none'].map(s => (
+                                    <button key={s} onClick={() => updateStatus(selectedIdx, v.id, s)} 
+                                        className={`flex-1 py-2 text-xs rounded-md ${v.status === s ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-400'}`}>
+                                        {s === 'done' ? '완성' : s === 'partial' ? '불완전' : '모름'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+
+            if (view === 'settings') return (
+                <div className="p-5 max-w-md mx-auto">
+                    <button onClick={() => setView('main')} className="mb-6 text-slate-400">← 뒤로가기</button>
+                    <h2 className="text-2xl font-bold mb-8">설정</h2>
+                    <button onClick={resetAll} className="w-full py-4 bg-red-50 text-red-600 rounded-xl font-bold border border-red-100">모든 암송 상태 초기화</button>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<BibleApp />);
+    </script>
+</body>
+</html>
