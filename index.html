@@ -3,117 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>성경 암송 앱</title>
+    <title>성경 암송 Pro v3.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="./data.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;700;900&display=swap');
+        body { font-family: 'Pretendard', sans-serif; }
+        .modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+    </style>
 </head>
-<body class="bg-slate-50">
+<body class="bg-gray-50 text-gray-900">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
         const BibleApp = () => {
-            // 검수: 로컬스토리지 저장 로직 확인
+            // 상태 관리
             const [data, setData] = useState(() => {
-                const saved = localStorage.getItem('bible_memory_state');
-                if (saved) return JSON.parse(saved);
-                
-                // 초기 데이터에 상태값(status) 부여
+                const savedState = localStorage.getItem('bible_memory_state');
+                if (savedState) return JSON.parse(savedState);
                 return initialBibleData.map(cat => ({
                     ...cat,
                     verses: cat.verses.map(v => ({ ...v, status: 'none' }))
                 }));
             });
 
-            const [view, setView] = useState('main'); 
-            const [selectedIdx, setSelectedIdx] = useState(0);
-            const [testMode, setTestMode] = useState('text');
-            const [filterOnlyIncomplete, setFilterOnlyIncomplete] = useState(false);
+            const [currentIdx, setCurrentIdx] = useState(() => {
+                return Number(localStorage.getItem('last_category_idx')) || 0;
+            });
 
+            const [view, setView] = useState('main'); 
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [testMode, setTestMode] = useState('text');
+            const [revealMap, setRevealMap] = useState({});
+
+            // 변경사항 저장
             useEffect(() => {
                 localStorage.setItem('bible_memory_state', JSON.stringify(data));
-            }, [data]);
+                localStorage.setItem('last_category_idx', currentIdx);
+            }, [data, currentIdx]);
 
-            // 코딩: 상태 업데이트 기능
-            const updateStatus = (catIdx, verseId, newStatus) => {
+            const handleStatusChange = (vId, status) => {
                 const newData = [...data];
-                const verse = newData[catIdx].verses.find(v => v.id === verseId);
-                verse.status = newStatus;
+                const verse = newData[currentIdx].verses.find(v => v.id === vId);
+                verse.status = status;
                 setData(newData);
             };
 
-            const resetAll = () => {
-                if(confirm("모든 암송 상태를 초기화할까?")) {
-                    const resetData = data.map(cat => ({
-                        ...cat,
-                        verses: cat.verses.map(v => ({ ...v, status: 'none' }))
-                    }));
-                    setData(resetData);
-                }
-            };
+            const progress = useMemo(() => {
+                const verses = data[currentIdx].verses;
+                const done = verses.filter(v => v.status === 'done').length;
+                return Math.round((done / verses.length) * 100);
+            }, [data, currentIdx]);
 
-            // 검수: 진행률 계산 최적화
-            const renderProgress = (verses) => {
-                const doneCount = verses.filter(v => v.status === 'done').length;
-                return Math.round((doneCount / verses.length) * 100);
-            };
-
-            // --- UI 메인 화면 ---
-            if (view === 'main') return (
-                <div className="p-5 max-w-md mx-auto">
-                    <header className="flex justify-between items-center mb-8">
-                        <h1 className="text-2xl font-black text-slate-800">Bible Memorize</h1>
-                        <button onClick={() => setView('settings')} className="text-xl">⚙️</button>
-                    </header>
-
-                    <div className="mb-6">
-                        <label className="flex items-center gap-2 text-sm text-slate-600 cursor-pointer bg-white p-3 rounded-lg border">
-                            <input type="checkbox" checked={filterOnlyIncomplete} onChange={e => setFilterOnlyIncomplete(e.target.checked)} />
-                            미완료(불완전/모름) 구절만 보기
-                        </label>
+            // --- UI 컴포넌트: 팝업 모달 ---
+            const TestModal = () => (
+                <div className="fixed inset-0 modal-overlay z-50 flex items-center justify-center p-6">
+                    <div className="bg-white w-full max-w-xs rounded-2xl p-6 shadow-2xl">
+                        <h3 className="text-lg font-bold mb-4 text-center">테스트 방식 선택</h3>
+                        <div className="space-y-3">
+                            <button onClick={() => { setTestMode('text'); setView('test'); setIsModalOpen(false); }}
+                                className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold">말씀 암송</button>
+                            <button onClick={() => { setTestMode('ref'); setView('test'); setIsModalOpen(false); }}
+                                className="w-full py-3 bg-gray-100 text-gray-800 rounded-xl font-bold border">장절 맞추기</button>
+                            <button onClick={() => setIsModalOpen(false)} className="w-full py-2 text-gray-400 text-sm">취소</button>
+                        </div>
                     </div>
-
-                    {data.map((cat, idx) => {
-                        const progress = renderProgress(cat.verses);
-                        return (
-                            <div key={idx} className="mb-6 p-4 bg-white rounded-xl shadow-sm border border-slate-100">
-                                <div className="flex justify-between items-center mb-2">
-                                    <h2 className="font-bold text-slate-700">[{cat.category}]</h2>
-                                    <span className="text-blue-500 font-bold text-sm">{progress}%</span>
-                                </div>
-                                <div className="w-full bg-slate-100 h-1.5 rounded-full mb-4">
-                                    <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{width: `${progress}%`}}></div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button onClick={() => {setSelectedIdx(idx); setTestMode('text'); setView('test');}} className="flex-1 py-2 bg-slate-800 text-white text-xs rounded-lg">말씀 테스트</button>
-                                    <button onClick={() => {setSelectedIdx(idx); setTestMode('ref'); setView('test');}} className="flex-1 py-2 bg-slate-100 text-slate-700 text-xs rounded-lg border">장절 테스트</button>
-                                </div>
-                            </div>
-                        );
-                    })}
                 </div>
             );
 
-            // 테스트 화면 및 설정 화면 (생략 가능하나 기능 유지를 위해 포함)
             if (view === 'test') return (
-                <div className="p-5 max-w-md mx-auto">
-                    <button onClick={() => setView('main')} className="mb-4 text-slate-400">← 뒤로가기</button>
-                    <h2 className="text-xl font-bold mb-6 text-center text-slate-800">[{data[selectedIdx].category}]</h2>
-                    {data[selectedIdx].verses.map(v => (
-                        <div key={v.id} className="mb-6 p-5 bg-white rounded-2xl border shadow-sm">
-                            <p className="text-blue-600 font-bold mb-2">{testMode === 'text' ? v.ref : '???'}</p>
-                            <details className="mb-4">
-                                <summary className="text-xs text-slate-300 cursor-pointer focus:outline-none">정답 확인</summary>
-                                <p className="mt-2 text-slate-700 leading-relaxed">{testMode === 'text' ? v.text : v.ref}</p>
-                            </details>
-                            <div className="flex gap-1">
+                <div className="max-w-md mx-auto min-h-screen bg-white p-5">
+                    <button onClick={() => { setView('main'); setRevealMap({}); }} className="mb-6 text-gray-400 font-medium">← 학습으로 돌아가기</button>
+                    <header className="mb-8">
+                        <span className="text-xs font-bold text-blue-500 uppercase tracking-widest">{testMode === 'text' ? 'Word Memory' : 'Reference Match'}</span>
+                        <h2 className="text-2xl font-black">[{data[currentIdx].category}]</h2>
+                    </header>
+                    
+                    {data[currentIdx].verses.map(v => (
+                        <div key={v.id} className="mb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="p-6 bg-gray-50 rounded-2xl mb-4 border border-gray-100">
+                                {testMode === 'text' ? (
+                                    <div className="text-center">
+                                        <p className="text-blue-600 font-bold text-xl mb-4">{v.ref}</p>
+                                        <div className={`transition-all duration-300 ${revealMap[v.id] ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>
+                                            <p className="text-gray-800 leading-relaxed text-lg italic">"{v.text}"</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center">
+                                        <p className="text-gray-800 leading-relaxed text-lg mb-4">"{v.text}"</p>
+                                        <div className={`transition-all duration-300 ${revealMap[v.id] ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>
+                                            <p className="text-blue-600 font-bold text-xl">{v.ref}</p>
+                                        </div>
+                                    </div>
+                                )}
+                                <button onClick={() => setRevealMap(prev => ({...prev, [v.id]: !prev[v.id]}))}
+                                    className="mt-4 w-full text-xs text-gray-400 underline decoration-dotted">
+                                    {revealMap[v.id] ? '숨기기' : '정답 확인'}
+                                </button>
+                            </div>
+                            <div className="flex gap-2">
                                 {['done', 'partial', 'none'].map(s => (
-                                    <button key={s} onClick={() => updateStatus(selectedIdx, v.id, s)} 
-                                        className={`flex-1 py-2 text-xs rounded-md ${v.status === s ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-400'}`}>
+                                    <button key={s} onClick={() => handleStatusChange(v.id, s)}
+                                        className={`flex-1 py-3 rounded-xl text-xs font-bold transition-all ${v.status === s ? 'bg-blue-600 text-white shadow-lg scale-105' : 'bg-gray-100 text-gray-400'}`}>
                                         {s === 'done' ? '완성' : s === 'partial' ? '불완전' : '모름'}
                                     </button>
                                 ))}
@@ -123,11 +120,66 @@
                 </div>
             );
 
-            if (view === 'settings') return (
-                <div className="p-5 max-w-md mx-auto">
-                    <button onClick={() => setView('main')} className="mb-6 text-slate-400">← 뒤로가기</button>
-                    <h2 className="text-2xl font-bold mb-8">설정</h2>
-                    <button onClick={resetAll} className="w-full py-4 bg-red-50 text-red-600 rounded-xl font-bold border border-red-100">모든 암송 상태 초기화</button>
+            return (
+                <div className="max-w-md mx-auto p-5 pb-24">
+                    {isModalOpen && <TestModal />}
+                    
+                    <header className="flex justify-between items-center mb-8">
+                        <h1 className="text-3xl font-black tracking-tighter italic">BIBLE.</h1>
+                        <button onClick={() => {
+                            if(confirm("기록을 초기화할까?")) {
+                                setData(data.map(c => ({...c, verses: c.verses.map(v => ({...v, status: 'none'}))})));
+                            }
+                        }} className="p-2 text-gray-300">🔄</button>
+                    </header>
+
+                    {/* 주제 선택 드롭다운 */}
+                    <div className="mb-8">
+                        <p className="text-xs font-bold text-gray-400 mb-2 ml-1">SELECT CATEGORY</p>
+                        <select 
+                            value={currentIdx}
+                            onChange={(e) => setCurrentIdx(Number(e.target.value))}
+                            className="w-full p-4 bg-white border-2 border-gray-100 rounded-2xl font-bold text-gray-700 shadow-sm focus:border-blue-500 outline-none transition-all"
+                        >
+                            {data.map((cat, i) => (
+                                <option key={i} value={i}>{cat.category}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* 진행률 바 */}
+                    <div className="mb-10 bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                        <div className="flex justify-between items-end mb-3">
+                            <span className="font-black text-2xl text-blue-600">{progress}%</span>
+                            <span className="text-xs font-bold text-gray-400">MEMORIZED</span>
+                        </div>
+                        <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
+                            <div className="bg-blue-500 h-full transition-all duration-1000 ease-out" style={{width: `${progress}%`}}></div>
+                        </div>
+                    </div>
+
+                    {/* 말씀 리스트 */}
+                    <div className="space-y-4">
+                        {data[currentIdx].verses.map(v => (
+                            <div key={v.id} className="p-5 bg-white rounded-2xl border border-gray-100 shadow-sm transition-transform active:scale-[0.98]">
+                                <div className="flex justify-between items-start mb-3">
+                                    <span className="text-sm font-black text-blue-500">{v.ref}</span>
+                                    <div className={`w-2 h-2 rounded-full ${v.status === 'done' ? 'bg-green-400' : v.status === 'partial' ? 'bg-yellow-400' : 'bg-red-400'}`}></div>
+                                </div>
+                                <p className="text-gray-700 leading-relaxed font-medium">"{v.text}"</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* 하단 플로팅 테스트 버튼 */}
+                    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-md px-5">
+                        <button 
+                            onClick={() => setIsModalOpen(true)}
+                            className="w-full py-4 bg-gray-900 text-white rounded-2xl font-black text-lg shadow-xl hover:bg-black transition-all"
+                        >
+                            TEST NOW
+                        </button>
+                    </div>
                 </div>
             );
         };
