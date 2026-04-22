@@ -1,5 +1,5 @@
 // data.js
-const initialBibleData = [
+const BIBLE_DATA = [
   {
     category: "성경을 배워야할 필요성",
     verses: [
